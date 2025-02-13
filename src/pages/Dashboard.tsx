@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { fileService } from '../services/api'
 
 interface File {
   id: number
@@ -15,6 +16,7 @@ export default function Dashboard() {
   const [breadcrumb, setBreadcrumb] = useState<File[]>([])
   const [draggedItem, setDraggedItem] = useState<File | null>(null)
   const [dropTarget, setDropTarget] = useState<number | null>(null)
+  const [isDraggingFile, setIsDraggingFile] = useState(false)
 
   const [files, setFiles] = useState<File[]>([
     {
@@ -40,15 +42,39 @@ export default function Dashboard() {
   const [isEditing, setIsEditing] = useState(false)
   const [newFileName, setNewFileName] = useState('')
 
-  const handleDelete = (id: number) => {
-    const deleteRecursively = (parentId: number) => {
-      const itemsToDelete = files.filter(file => file.parentId === parentId).map(f => f.id)
-      itemsToDelete.forEach(id => deleteRecursively(id))
-      setFiles(files => files.filter(file => !itemsToDelete.includes(file.id)))
+  const loadFiles = async () => {
+    try {
+      const fileList = await fileService.listFiles()
+      if (Array.isArray(fileList)) {
+        setFiles(fileList)
+      } else {
+        console.error('Format de données invalide:', fileList)
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement des fichiers:', error)
+      // Optionnel : afficher un message d'erreur à l'utilisateur
+      // setError("Impossible de charger la liste des fichiers");
     }
+  }
 
-    deleteRecursively(id)
-    setFiles(files => files.filter(file => file.id !== id))
+  useEffect(() => {
+    loadFiles()
+  }, [])
+
+  const handleDelete = async (id: number) => {
+    const fileToDelete = files.find(f => f.id === id)
+    if (!fileToDelete) return
+
+    try {
+      await fileService.deleteFile(fileToDelete.name)
+      setFiles(files => files.filter(file => file.id !== id))
+    } catch (error) {
+      console.error('Erreur lors de la suppression:', error)
+    }
+  }
+
+  const handleDownload = (fileName: string) => {
+    fileService.downloadFile(fileName)
   }
 
   const handleEdit = (file: File) => {
@@ -238,6 +264,55 @@ export default function Dashboard() {
     setDropTarget(null)
   }
 
+  const handleWindowDragEnter = (e: globalThis.DragEvent) => {
+    e.preventDefault()
+    if (e.dataTransfer?.types.includes('Files')) {
+      setIsDraggingFile(true)
+    }
+  }
+
+  const handleWindowDragLeave = (e: globalThis.DragEvent) => {
+    e.preventDefault()
+    if (e.clientY <= 0 || e.clientX <= 0 || 
+        e.clientY >= window.innerHeight || 
+        e.clientX >= window.innerWidth) {
+      setIsDraggingFile(false)
+    }
+  }
+
+  const handleWindowDrop = async (e: globalThis.DragEvent) => {
+    e.preventDefault()
+    setIsDraggingFile(false)
+
+    if (e.dataTransfer?.files) {
+      const droppedFiles = Array.from(e.dataTransfer.files)
+      
+      try {
+        for (const file of droppedFiles) {
+          await fileService.uploadFile(file)
+        }
+        // Recharger la liste des fichiers après l'upload
+        loadFiles()
+      } catch (error) {
+        console.error('Erreur lors de l\'upload:', error)
+      }
+    }
+  }
+
+  useEffect(() => {
+    window.addEventListener('dragenter', handleWindowDragEnter)
+    window.addEventListener('dragleave', handleWindowDragLeave)
+    window.addEventListener('dragover', e => e.preventDefault())
+    window.addEventListener('drop', handleWindowDrop)
+
+    return () => {
+      window.removeEventListener('dragenter', handleWindowDragEnter)
+      window.removeEventListener('dragleave', handleWindowDragLeave)
+      window.removeEventListener('dragover', e => e.preventDefault())
+      window.removeEventListener('drop', handleWindowDrop)
+    }
+  }, [])
+
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
       <div className="max-w-7xl mx-auto">
@@ -380,6 +455,12 @@ export default function Dashboard() {
                             Modifier
                           </button>
                           <button
+                            onClick={() => handleDownload(file.name)}
+                            className="text-sm font-medium text-green-600 hover:text-green-900 focus:outline-none"
+                          >
+                            Télécharger
+                          </button>
+                          <button
                             onClick={() => handleDelete(file.id)}
                             className="text-sm font-medium text-red-600 hover:text-red-900 focus:outline-none"
                           >
@@ -395,6 +476,42 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {isDraggingFile && (
+        <div 
+          className="fixed inset-0 bg-indigo-500/30 backdrop-blur-sm z-50"
+          onDragLeave={(e: React.DragEvent) => setIsDraggingFile(false)}
+          onDrop={(e: React.DragEvent) => {
+            e.preventDefault()
+            setIsDraggingFile(false)
+          }}
+          onDragOver={(e: React.DragEvent) => e.preventDefault()}
+        >
+          <div className="absolute inset-4 border-2 border-indigo-500 border-dashed flex items-center justify-center">
+            <div className="bg-white p-8 rounded-xl shadow-2xl text-center">
+              <svg 
+                className="w-16 h-16 mx-auto text-indigo-500 mb-4" 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  strokeWidth="2" 
+                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3 3m0 0l-3-3m3 3V8"
+                />
+              </svg>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">
+                Déposez vos fichiers ici
+              </h3>
+              <p className="text-gray-500">
+                Relâchez pour ajouter les fichiers à votre gestionnaire
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 } 
