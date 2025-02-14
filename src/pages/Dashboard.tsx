@@ -130,8 +130,18 @@ export default function Dashboard() {
     }
   };
 
-  const handleDownload = (fileName: string) => {
-    fileService.downloadFile(fileName)
+  const handleDownload = (file: File) => {
+    if (file.isFolder) {
+      alert('Impossible de télécharger un dossier')
+      return
+    }
+    
+    if (!file.Path) {
+      alert('Chemin du fichier non disponible')
+      return
+    }
+    
+    fileService.downloadFile(file.Path)
   }
 
   const handleEdit = (file: File) => {
@@ -511,7 +521,7 @@ export default function Dashboard() {
                             Modifier
                           </button>
                           <button
-                            onClick={() => handleDownload(file.name)}
+                            onClick={() => handleDownload(file)}
                             className="text-sm font-medium text-green-600 hover:text-green-900 focus:outline-none"
                           >
                             Télécharger

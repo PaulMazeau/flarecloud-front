@@ -80,7 +80,32 @@ export const fileService = {
     }
   },
 
-  downloadFile(fileName: string) {
-    window.open(`${API_URL}/download?path=${fileName}`, '_blank');
+  async downloadFile(filePath: string) {
+    let fileName = filePath.split('/').pop() || '';
+    console.log('Nom de fichier original:', fileName);
+    
+    fileName = fileName.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}.*/i, '');
+    
+    const lastDotIndex = fileName.lastIndexOf('.');
+    if (lastDotIndex !== -1) {
+      const name = fileName.substring(0, lastDotIndex);
+      const extension = fileName.substring(lastDotIndex);
+      fileName = name + extension;
+    }
+    
+    try {
+      const response = await fetch(`${API_URL}/download?path=${encodeURIComponent(filePath)}`);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName.trim();
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Erreur lors du téléchargement:', error);
+    }
   }
 }; 
