@@ -107,5 +107,27 @@ export const fileService = {
     } catch (error) {
       console.error('Erreur lors du téléchargement:', error);
     }
+  },
+
+  async updateFile(fileId: string, updates: { name: string; parentId: string }) {
+    try {
+      const url = new URL(`${API_URL}/update-file`);
+      url.searchParams.append('id', fileId);
+      url.searchParams.append('name', updates.name);
+      url.searchParams.append('parent_id', updates.parentId);
+
+      const response = await fetch(url.toString(), {
+        method: 'POST'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour du fichier:', error);
+      throw error;
+    }
   }
 }; 

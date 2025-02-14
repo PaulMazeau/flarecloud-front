@@ -181,7 +181,7 @@ export default function Dashboard() {
     })
   }
 
-  const handleUpdate = () => {
+  const handleUpdate = async () => {
     if (selectedFile && newFileName.trim()) {
       if (isNameTaken(newFileName, selectedFile.isFolder, selectedFile.parentId, selectedFile.id)) {
         alert(selectedFile.isFolder 
@@ -190,13 +190,18 @@ export default function Dashboard() {
         return
       }
 
-      setFiles(files.map(file => 
-        file.id === selectedFile.id 
-          ? { ...file, name: newFileName }
-          : file
-      ))
-      setIsEditing(false)
-      setSelectedFile(null)
+      try {
+        await fileService.updateFile(selectedFile.id.toString(), {
+          name: newFileName,
+          parentId: selectedFile.parentId?.toString() ?? "000000000000000000000000"
+        });
+        await loadFiles();
+        setIsEditing(false);
+        setSelectedFile(null);
+      } catch (error) {
+        console.error('Erreur lors de la mise à jour du nom:', error);
+        alert('Erreur lors de la mise à jour du nom du fichier');
+      }
     }
   }
 
@@ -297,11 +302,10 @@ export default function Dashboard() {
     setDropTarget(targetId)
   }
 
-  const handleDrop = (e: React.DragEvent, targetId: number | null) => {
+  const handleDrop = async (e: React.DragEvent, targetId: number | null) => {
     e.preventDefault()
     
     if (!draggedItem) return
-
     if (draggedItem.id === targetId) return
 
     const isSubfolder = (parentId: number | null, targetId: number): boolean => {
@@ -321,11 +325,16 @@ export default function Dashboard() {
       return
     }
 
-    setFiles(files.map(file => 
-      file.id === draggedItem.id 
-        ? { ...file, parentId: targetId }
-        : file
-    ))
+    try {
+      await fileService.updateFile(draggedItem.id.toString(), {
+        name: draggedItem.name,
+        parentId: targetId?.toString() ?? "000000000000000000000000"
+      });
+      await loadFiles();
+    } catch (error) {
+      console.error('Erreur lors du déplacement:', error);
+      alert('Erreur lors du déplacement du fichier');
+    }
 
     setDraggedItem(null)
     setDropTarget(null)
@@ -382,7 +391,7 @@ export default function Dashboard() {
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
       <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex justify-between items-end mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Gestionnaire de fichiers</h1>
             <nav className="flex mt-3" aria-label="Breadcrumb">
@@ -425,21 +434,12 @@ export default function Dashboard() {
           <div className="flex space-x-4">
             <button
               onClick={handleAddFolder}
-              className="inline-flex items-center px-6 py-3 rounded-lg bg-green-600 text-white font-medium hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200"
+              className="bg-indigo-600 text-white hover:bg-indigo-700 px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200 flex items-center"
             >
               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5l7 7v9a2 2 0 01-2 2z" />
               </svg>
               Nouveau dossier
-            </button>
-            <button
-              onClick={handleAdd}
-              className="inline-flex items-center px-6 py-3 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200"
-            >
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
-              </svg>
-              Nouveau fichier
             </button>
           </div>
         </div>
@@ -474,6 +474,11 @@ export default function Dashboard() {
                             type="text"
                             value={newFileName}
                             onChange={(e) => setNewFileName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                handleUpdate();
+                              }
+                            }}
                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                           />
                         </div>
