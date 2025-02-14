@@ -1,9 +1,12 @@
 const API_URL = 'http://localhost:8080';
 
 export const fileService = {
-  async uploadFile(file: File) {
+  async uploadFile(file: File, parentId?: string) {
     const formData = new FormData();
     formData.append('file', file);
+    if (parentId) {
+      formData.append('parentId', parentId);
+    }
 
     try {
       const response = await fetch(`${API_URL}/upload`, {
@@ -17,44 +20,67 @@ export const fileService = {
     }
   },
 
-  async deleteFile(fileName: string) {
+  async createFolder(folderName: string, parentId?: string) {
     try {
-      const response = await fetch(`${API_URL}/delete?file=${fileName}`, {
-        method: 'DELETE',
+      const url = new URL(`${API_URL}/create-folder`);
+      url.searchParams.append('folder', folderName);
+      if (parentId) {
+        url.searchParams.append('parentId', parentId);
+      }
+
+      const response = await fetch(url.toString(), {
+        method: 'POST',
       });
       return await response.json();
     } catch (error) {
-      console.error('Erreur lors de la suppression:', error);
+      console.error('Erreur lors de la création du dossier:', error);
       throw error;
     }
   },
 
-  async listFiles() {
+  async listFiles(parentId?: string) {
     try {
-      const response = await fetch(`${API_URL}/list`);
+      const url = new URL(`${API_URL}/list`);
+      if (parentId) {
+        url.searchParams.append('parentId', parentId);
+      }
+
+      const response = await fetch(url.toString());
       if (!response.ok) {
-        const errorText = await response.text();
-        console.log('Réponse du serveur:', errorText);
-        throw new Error(`Erreur serveur: ${errorText}`);
+        throw new Error(`Erreur HTTP: ${response.status}`);
       }
-      const data = await response.json();
-      
-      if (Array.isArray(data)) {
-        return data;
-      }
-      
-      if (data.success === false) {
-        throw new Error(data.error || 'Erreur inconnue');
-      }
-      
-      return data.data || [];
+      return await response.json();
     } catch (error) {
-      console.error('Erreur détaillée:', error);
+      console.error('Erreur lors de la liste des fichiers:', error);
+      throw error;
+    }
+  },
+
+  async deleteFile(filePath: string) {
+    try {
+      const response = await fetch(`${API_URL}/delete?path=${filePath}`, {
+        method: 'DELETE',
+      });
+      return await response.json();
+    } catch (error) {
+      console.error('Erreur lors de la suppression du fichier:', error);
+      throw error;
+    }
+  },
+
+  async deleteFolder(folderId: string) {
+    try {
+      const response = await fetch(`${API_URL}/delete-folder?id=${folderId}`, {
+        method: 'DELETE',
+      });
+      return await response.json();
+    } catch (error) {
+      console.error('Erreur lors de la suppression du dossier:', error);
       throw error;
     }
   },
 
   downloadFile(fileName: string) {
-    window.open(`${API_URL}/download?file=${fileName}`, '_blank');
+    window.open(`${API_URL}/download?path=${fileName}`, '_blank');
   }
 }; 

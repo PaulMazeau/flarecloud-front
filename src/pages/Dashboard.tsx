@@ -9,6 +9,7 @@ interface File {
   lastModified: string
   isFolder: boolean
   parentId: number | null
+  Path: string
 }
 
 export default function Dashboard() {
@@ -26,7 +27,8 @@ export default function Dashboard() {
       size: '-',
       lastModified: '2024-03-20',
       isFolder: true,
-      parentId: null
+      parentId: null,
+      Path: ''
     },
     {
       id: 2,
@@ -35,7 +37,8 @@ export default function Dashboard() {
       size: '2.5 MB',
       lastModified: '2024-03-20',
       isFolder: false,
-      parentId: null
+      parentId: null,
+      Path: ''
     }
   ])
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -44,17 +47,67 @@ export default function Dashboard() {
 
   const loadFiles = async () => {
     try {
-      const fileList = await fileService.listFiles()
-      if (Array.isArray(fileList)) {
-        setFiles(fileList)
-      } else {
-        console.error('Format de données invalide:', fileList)
+      const response = await fileService.listFiles(currentFolderId?.toString());
+      console.log('Réponse de l\'API:', response);
+      
+      const formattedFiles = [];
+
+      // Traitement des dossiers
+      if (response.folders) {
+        const formattedFolders = response.folders.map((folder: { ID: any; Name: any; CreatedAt: string | number | Date; parent_id: string }) => ({
+          id: folder.ID,
+          name: folder.Name,
+          type: 'Dossier',
+          size: '-',
+          lastModified: new Date(folder.CreatedAt).toISOString().split('T')[0],
+          isFolder: true,
+          parentId: folder.parent_id === "000000000000000000000000" ? null : folder.parent_id,
+          Path: ''
+        }));
+        formattedFiles.push(...formattedFolders);
       }
+
+      // Traitement des fichiers
+      if (response.files) {
+        const formattedFilesList = response.files.map((file: { ID: any; Name: any; Type: any; Size: number; CreatedAt: string | number | Date; parent_id: string; Path: string }) => ({
+          id: file.ID,
+          name: file.Name,
+          type: file.Type.split('/')[1].toUpperCase(),
+          size: formatFileSize(file.Size),
+          lastModified: new Date(file.CreatedAt).toISOString().split('T')[0],
+          isFolder: false,
+          parentId: file.parent_id === "000000000000000000000000" ? null : file.parent_id,
+          Path: file.Path
+        }));
+        formattedFiles.push(...formattedFilesList);
+      }
+
+      // Mise à jour du fil d'Ariane si l'historique est présent
+      if (response.history) {
+        setBreadcrumb(response.history.map((item: { ID: any; Name: any; parent_id: string }) => ({
+          id: item.ID,
+          name: item.Name,
+          type: 'Dossier',
+          size: '-',
+          lastModified: '',
+          isFolder: true,
+          parentId: item.parent_id === "000000000000000000000000" ? null : item.parent_id,
+          Path: ''
+        })));
+      }
+
+      setFiles(formattedFiles);
     } catch (error) {
-      console.error('Erreur lors du chargement des fichiers:', error)
-      // Optionnel : afficher un message d'erreur à l'utilisateur
-      // setError("Impossible de charger la liste des fichiers");
+      console.error('Erreur lors du chargement des fichiers:', error);
     }
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 B'
+    const k = 1024
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`
   }
 
   useEffect(() => {
@@ -62,16 +115,20 @@ export default function Dashboard() {
   }, [])
 
   const handleDelete = async (id: number) => {
-    const fileToDelete = files.find(f => f.id === id)
-    if (!fileToDelete) return
+    const fileToDelete = files.find(f => f.id === id);
+    if (!fileToDelete) return;
 
     try {
-      await fileService.deleteFile(fileToDelete.name)
-      setFiles(files => files.filter(file => file.id !== id))
+      if (fileToDelete.isFolder) {
+        await fileService.deleteFolder(fileToDelete.id.toString());
+      } else {
+        await fileService.deleteFile(fileToDelete.Path);
+      }
+      await loadFiles();
     } catch (error) {
-      console.error('Erreur lors de la suppression:', error)
+      console.error('Erreur lors de la suppression:', error);
     }
-  }
+  };
 
   const handleDownload = (fileName: string) => {
     fileService.downloadFile(fileName)
@@ -134,7 +191,10 @@ export default function Dashboard() {
   }
 
   const getCurrentFolderFiles = () => {
-    return files.filter(file => file.parentId === currentFolderId)
+    const currentFiles = files.filter(file => file.parentId === currentFolderId)
+    console.log('Dossier actuel:', currentFolderId)
+    console.log('Fichiers filtrés:', currentFiles)
+    return currentFiles
   }
 
   const updateBreadcrumb = (folderId: number | null) => {
@@ -182,12 +242,13 @@ export default function Dashboard() {
       size: '0 KB',
       lastModified: new Date().toISOString().split('T')[0],
       isFolder: false,
-      parentId: currentFolderId
+      parentId: currentFolderId,
+      Path: ''
     }
     setFiles([...files, newFile])
   }
 
-  const handleAddFolder = () => {
+  const handleAddFolder = async () => {
     let baseName = 'Nouveau dossier'
     let counter = 1
     let newName = baseName
@@ -197,16 +258,12 @@ export default function Dashboard() {
       counter++
     }
 
-    const newFolder: File = {
-      id: Math.max(...files.map(f => f.id)) + 1,
-      name: newName,
-      type: 'Dossier',
-      size: '-',
-      lastModified: new Date().toISOString().split('T')[0],
-      isFolder: true,
-      parentId: currentFolderId
+    try {
+      await fileService.createFolder(newName, currentFolderId?.toString())
+      loadFiles() // Recharger la liste après création
+    } catch (error) {
+      console.error('Erreur lors de la création du dossier:', error)
     }
-    setFiles([...files, newFolder])
   }
 
   const handleDragStart = (file: File, e: React.DragEvent) => {
@@ -289,10 +346,9 @@ export default function Dashboard() {
       
       try {
         for (const file of droppedFiles) {
-          await fileService.uploadFile(file)
+          await fileService.uploadFile(file, currentFolderId?.toString())
         }
-        // Recharger la liste des fichiers après l'upload
-        loadFiles()
+        loadFiles() // Recharger la liste après upload
       } catch (error) {
         console.error('Erreur lors de l\'upload:', error)
       }
