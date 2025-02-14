@@ -114,7 +114,10 @@ export const fileService = {
       const url = new URL(`${API_URL}/update-file`);
       url.searchParams.append('id', fileId);
       url.searchParams.append('name', updates.name);
-      url.searchParams.append('parent_id', updates.parentId);
+      
+      if (updates.parentId !== "000000000000000000000000") {
+        url.searchParams.append('parentId', updates.parentId);
+      }
 
       const response = await fetch(url.toString(), {
         method: 'POST'

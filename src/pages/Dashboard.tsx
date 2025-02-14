@@ -112,7 +112,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadFiles()
-  }, [])
+  }, [currentFolderId])
 
   const handleDelete = async (id: number) => {
     const fileToDelete = files.find(f => f.id === id);
@@ -232,36 +232,13 @@ export default function Dashboard() {
   const handleFolderClick = (folder: File) => {
     setCurrentFolderId(folder.id)
     updateBreadcrumb(folder.id)
+    loadFiles()
   }
 
-  const handleBreadcrumbClick = (folder: File | null) => {
-    setCurrentFolderId(folder?.id ?? null)
-    updateBreadcrumb(folder?.id ?? null)
-  }
-
-  const handleAdd = () => {
-    let baseName = 'Nouveau fichier'
-    let extension = '.txt'
-    let counter = 1
-    let newName = `${baseName}${extension}`
-
-    while (isNameTaken(newName, false, currentFolderId)) {
-      newName = `${baseName} (${counter})${extension}`
-      counter++
-    }
-
-    const newFile: File = {
-      id: Math.max(...files.map(f => f.id)) + 1,
-      name: newName,
-      type: 'TXT',
-      size: '0 KB',
-      lastModified: new Date().toISOString().split('T')[0],
-      isFolder: false,
-      parentId: currentFolderId,
-      Path: ''
-    }
-    setFiles([...files, newFile])
-  }
+  const handleBreadcrumbClick = async (folder: File | null) => {
+    setCurrentFolderId(folder?.id ?? null);
+    updateBreadcrumb(folder?.id ?? null);
+  };
 
   const handleAddFolder = async () => {
     let baseName = 'Nouveau dossier'
