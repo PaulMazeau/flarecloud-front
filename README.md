@@ -4,4 +4,4 @@ Ceci est le repository de notre projet github pour gérer toute la partie front-
 
 ## Demo
 
-[![Regarder la démo]](https://youtu.be/Gq_ZVeIigN0)
+[Regarder la démo sur youtube](https://youtu.be/Gq_ZVeIigN0)
